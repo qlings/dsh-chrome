@@ -1,0 +1,37 @@
+{
+  "name": "dsh-chrome",
+  "version": "1.18.0",
+  "description": "让 DSH 接管本机 Chrome：通过 MV3 扩展桥读取/修改/提交页面、多标签跳转、复用已登录账户自动登录、幂等勾选、行文本定位、长文本读取，每次操作落盘。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./extension": "./extension",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "extension",
+    "cordis.patch.yml",
+    "README.md",
+    "SKILL.md",
+    "references"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "chrome",
+    "browser",
+    "automation"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

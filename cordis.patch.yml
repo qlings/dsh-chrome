@@ -1,0 +1,7 @@
+# dsh-chrome bundle patch
+# 纯 insert（id/name）：cordis 按 name import 包，写错会 Cannot find package。
+# 装法：把本目录放到 profile 的 node_modules/dsh-chrome，再在 profile 的
+# cordis.patch.yml 里追加下面这段，或直接 `dsh plugin --profile desktop add <本目录>`。
+- insert:
+    - id: dsh-chrome
+      name: dsh-chrome

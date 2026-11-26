@@ -1,0 +1,56 @@
+# 表格、行内按钮与弹窗
+
+## 1. 三种读法，按场景选
+
+| 场景 | 用法 | 说明 |
+|---|---|---|
+| 要点某一行/勾选 | `rows` | `{"action":"rows","in":"tbody tr","limit":20}`，一行一条 + ref + 勾选态 |
+| 要表格正文 | `read` + `tables:"rows"` | 一行一条记录，表头单独一行；`tableRows`/`tableLimit` 控规模 |
+| 要看整页内容 | `read` | 默认会把单元格拆成一行一格，表格页优先上面两种 |
+
+## 2. 按行文本定位
+
+```json
+{"action":"check","rowText":"GY01-GWTEST01020260121171100","in":".el-table__body-wrapper .el-table__row",
+ "target":"input[type=checkbox]","rowMatch":"includes"}
+```
+
+- `rowMatch`：`auto` / `equals` / `startswith` / `includes`；怕误命中写 `equals`。
+- 命中多行：1.16.0 起可加 `index`（从 0 开始）直接指定第几行；错误回执也会提示。
+- 行内按钮：`in` 行容器 + `rowText` + `target:"button:has-text('编辑')"` 不一定支持 `:has-text`，用 `target` 指到按钮的 class 或先 `rows` 拿 ref。
+
+## 3. 选中态：click 还是 check
+
+- 勾选框、开关：**用 `check`**（幂等，重复跑不会点反）。
+- 表格行选中（`selection-change`）：必须点到 `input[type=checkbox]` 本体，`check` 默认就会找它；只点单元格不会触发 Element 的选中事件。
+- 先盘点：`isChecked` 一次拿到 total/checkedCount/每行状态。
+
+## 4. 禁用按钮
+
+1.16.0 起，点到 `disabled` / `aria-disabled="true"`（含祖先）会直接返回：
+
+```
+errorCode: ELEMENT_DISABLED
+「编辑」当前是禁用状态（disabled / aria-disabled），点击不会触发任何行为。
+先满足它的前置条件（例如先在表格里选中一行、勾选一条），或用 action=vue + call 直接调组件方法；
+确认要硬点再加 force:true。
+```
+
+- 正确顺序：先 `check` 选中行 → 等按钮变为可用（`wait selector` 或重读 `outline`）→ 再 `click`。
+- 不要 `el.disabled=false; el.click()`：Vue 的内部 disabled 计算没变，事件处理器仍会拒绝执行。
+- 确实要绕过（只读演示）：`force:true`，但要知道页面状态不会因此改变。
+
+## 5. 弹窗（ElDialog / Drawer / Teleport）
+
+- 点击后先 `wait selector:".el-dialog"` 或 `wait text:"新增"`，再截图/填表。
+- 浮层 teleport 到 `body`，同名 class 可能有多份：选择器加 `:not([style*="display: none"])`，或先筛可见元素。
+- 关弹窗：点「取消」或右上角关闭；用 `press Escape` 有时更稳。
+- 弹窗内容截不全：`screenshot` 用 `selector:".el-dialog"`，不要整屏。
+
+## 6. 表格排查清单
+
+1. 表格在不在 iframe 里？（`frames`，或看 `read` 回执的 `frame:{auto:true}`）
+2. 行容器选择器对不对？（Element 是 `.el-table__body-wrapper .el-table__row`；Ant 是 `.ant-table-tbody > tr`）
+3. 文字是否被截断/换行？（`rowMatch:"includes"` + 唯一片段）
+4. 是否有同名行？（加 `index` 或 `equals`）
+5. 点完没反应？（看是否 disabled；看是否被浮层遮挡；加 `expect:{changed:true}`）

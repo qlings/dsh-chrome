@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>DSH Chrome 桥</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; width: 360px; font: 13px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; background: #16161c; color: #e8e8f0; }
+    header { padding: 12px 14px 8px; border-bottom: 1px solid #2a2a36; }
+    h1 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .sub { font-size: 11px; color: #8b8b9e; }
+    main { padding: 10px 14px 14px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+    .dot.on { background: #3ddc84; box-shadow: 0 0 6px #3ddc84; }
+    .dot.off { background: #ff5d5d; }
+    input[type="number"] { width: 80px; background: #22222c; color: inherit; border: 1px solid #33333f; border-radius: 6px; padding: 4px 6px; }
+    button { background: #2d2d3b; color: inherit; border: 1px solid #3a3a4a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+    button:hover { background: #383848; }
+    .log { margin-top: 10px; max-height: 220px; overflow: auto; border-top: 1px solid #2a2a36; }
+    .item { padding: 6px 0; border-bottom: 1px solid #22222c; font-size: 12px; }
+    .item .t { color: #8b8b9e; font-size: 11px; }
+    .ok { color: #3ddc84; }
+    .bad { color: #ff7a7a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DSH Chrome 桥</h1>
+    <div class="sub">诺诺用来接管这个 Chrome 的通道</div>
+  </header>
+  <main>
+    <div class="row">
+      <span id="dot" class="dot"></span>
+      <span id="state">检查中…</span>
+    </div>
+    <div class="row">
+      <label for="port">桥端口</label>
+      <input id="port" type="number" min="1024" max="65535" step="1">
+      <button id="save">保存</button>
+      <button id="poke">重连</button>
+      <button id="reload" title="改完扩展代码后点这里，等价于 chrome://extensions 里的刷新箭头">重载</button>
+    </div>
+    <div class="sub" id="hint"></div>
+    <div class="log" id="log"></div>
+  </main>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
