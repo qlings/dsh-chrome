@@ -1490,6 +1490,8 @@ export async function runCommand(cmd) {
             break
           } catch (error) { cdpMiss = error }
         }
+        // 明确要 cdp 的，不在探针里兜底——否则用户以为看的是 CDP 那条，实际是历史记录。
+        if (cdpMiss && String(p.source || '').toLowerCase() === 'cdp') throw cdpMiss
         // CDP 缓冲里没有（请求发生在挂上之前）：从各帧探针里找，probe 带请求体/请求头
         const probe = await readProbeAll(tab.id)
         const test = cdp.urlMatcher(p.filter, String(p.match || '').toLowerCase())
