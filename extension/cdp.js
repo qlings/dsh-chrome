@@ -838,23 +838,24 @@ export async function networkDetail(tabId, opts = {}) {
   await ensure(tabId, { domains: ['Network'] })
   const rows = networkBuf.get(tabId) || []
   const test = urlMatcher(opts.filter, String(opts.match || '').toLowerCase())
+  // 1.19.0：index 的语义统一为「filter 命中集合里倒数第 N 条」。
+  // 之前取行用的是整个缓冲倒序，候选列表却是按 filter 算的——两边不是同一个集合，
+  // 照着候选的 index 取会落到隔壁接口（2026-11-26 排查退库接口时连踩 3 次）。
+  const base = opts.filter ? rows.filter((r) => test(r.url)) : rows
   let row = null
   if (opts.requestId) row = rows.find((r) => r.id === opts.requestId) || null
-  else if (opts.index != null) row = rows[rows.length - 1 - Math.max(0, Number(opts.index) || 0)] || null
-  else if (opts.filter) row = [...rows].reverse().find((r) => test(r.url)) || null
-  else row = rows[rows.length - 1] || null
+  else if (opts.index != null) row = base[base.length - 1 - Math.max(0, Number(opts.index) || 0)] || null
+  else row = base[base.length - 1] || null
   if (!row) {
     throw cdpError('NOT_FOUND', '网络缓冲里没有匹配的请求。先 networkLog 看一眼——只抓 CDP 挂上之后的请求。')
   }
   // 命中多条时把候选带回去：filter 是子串匹配，很容易点到隔壁接口。
+  // index 与上面取行同源（0 = 最新），可以直接回传给 networkDetail({index})。
   let candidates = []
-  if (opts.filter && !opts.requestId) {
-    const hit = rows.filter((r) => test(r.url))
-    if (hit.length > 1) {
-      candidates = hit.slice(-8).reverse().map((r, i) => ({
-        index: i, requestId: r.id, method: r.method, status: r.status, url: r.url,
-      }))
-    }
+  if (opts.filter && !opts.requestId && base.length > 1) {
+    candidates = base.slice(-8).reverse().map((r, i) => ({
+      index: i, requestId: r.id, method: r.method, status: r.status, url: r.url,
+    }))
   }
   let body = ''
   let bodyError = ''

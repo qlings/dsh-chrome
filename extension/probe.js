@@ -7,8 +7,9 @@
  * window.__dshProbe 里；executor 的 networkLog / logs 在 CDP 缓冲为空（或不全）时
  * 通过 MAIN 世界读它补齐历史。
  *
- * 记录内容：方法/URL/状态/耗时/请求体（截断）/请求头（脱敏）/日志文本；**不记响应体**，
- * 避免把页面数据常驻在内存里；也不改页面行为，调用原函数。
+ * 记录内容：方法/URL/状态/耗时/请求体（截断）/请求头（脱敏）/日志文本；**默认不记响应体**
+ * （避免把页面数据常驻在内存里，也可能含凭据）；要在页面里显式打开才记前 N 字：
+ * `window.__dshProbeRespLimit = 2000`。也不改页面行为，调用原函数。
  *
  * 请求体为什么要记（2026-11-21 加）：排查「保存了但没生效」时，第一问题永远是
  * 「到底提交了什么」，此前只能自己 patch XHR 去抓。只存前 BODY_MAX 字符（默认
@@ -29,7 +30,11 @@
   const MAX = 200
   const net = []
   const con = []
+  // 1.19.0：给网络行一个稳定 id（p1/p2…）。之前探针行没有 id，networkDetail/replay
+  // 只能用 filter 猜最后一条，页面上一有同名请求就指错（2026-11-26 踩过）。
+  let netSeq = 0
   const push = (arr, row) => {
+    if (arr === net && !row.id) row.id = 'p' + (++netSeq)
     arr.push(row)
     if (arr.length > MAX) arr.splice(0, arr.length - MAX)
   }
@@ -83,6 +88,20 @@
     if (info.form) out.bodyKind = 'form'
     if (info.blob) out.bodyKind = 'blob'
     return out
+  }
+
+  /* 响应体预览（1.19.0，默认关）：报错发生在 CDP 挂上之前时，只有请求体没有响应体，
+     排查「接口为什么报错」还得再复现一次。显式设 window.__dshProbeRespLimit = 2000
+     才记前 N 字；默认 0 = 不记，保持原来的内存/隐私口径。 */
+  const respLimit = () => {
+    const v = Number(window.__dshProbeRespLimit)
+    return Number.isFinite(v) ? Math.max(0, Math.min(20000, v)) : 0
+  }
+  const respFields = (text) => {
+    const max = respLimit()
+    if (!max || text == null) return {}
+    const s = String(text)
+    return Object.assign({ resp: clip(s, max), respLen: s.length }, s.length > max ? { respTruncated: true } : {})
   }
 
   /* 请求头：只留「看得懂这次调用」的部分，凭据绝不落地。
@@ -141,7 +160,14 @@
           let len = 0
           try { mime = res.headers.get('content-type') || '' } catch { /* 拿不到就算了 */ }
           try { len = Number(res.headers.get('content-length')) || 0 } catch { /* 拿不到就算了 */ }
-          push(net, Object.assign({ ts: started, ms: Date.now() - started, method, url: clip(url, 500), status: res.status, type: 'fetch', via: 'probe', mime: clip(mime, 80), length: len }, reqHead, reqBody))
+          const row = Object.assign({ ts: started, ms: Date.now() - started, method, url: clip(url, 500), status: res.status, type: 'fetch', via: 'probe', mime: clip(mime, 80), length: len }, reqHead, reqBody)
+          push(net, row)
+          const max = respLimit()
+          if (max > 0 && res && typeof res.clone === 'function') {
+            try {
+              res.clone().text().then((text) => Object.assign(row, respFields(text))).catch(() => {})
+            } catch { /* clone 失败不影响页面请求 */ }
+          }
         },
         (err) => push(net, Object.assign({ ts: started, ms: Date.now() - started, method, url: clip(url, 500), status: null, failed: String((err && err.message) || err), type: 'fetch', via: 'probe' }, reqHead, reqBody)),
       )
@@ -181,12 +207,17 @@
           try { status = this.status || null } catch { status = null }
           try { mime = (this.getResponseHeader && this.getResponseHeader('content-type')) || '' } catch { mime = '' }
           try { len = Number((this.getResponseHeader && this.getResponseHeader('content-length')) || 0) } catch { len = 0 }
-          push(net, Object.assign({
+          const row = Object.assign({
             ts: info.started, ms: Date.now() - info.started, method: info.method,
             url: clip(info.url, 500), status, type: 'xhr', via: 'probe',
             mime: clip(mime, 80), length: len,
             failed: status ? '' : 'network-error',
-          }, headerFields(info.headers), info.body || {}))
+          }, headerFields(info.headers), info.body || {})
+          push(net, row)
+          // 响应体默认不记；显式打开 __dshProbeRespLimit 才读前 N 字。
+          if (respLimit() > 0 && (!this.responseType || this.responseType === 'text')) {
+            try { Object.assign(row, respFields(this.responseText)) } catch { /* 拿不到就算了 */ }
+          }
         }
         try { this.addEventListener('loadend', done) } catch { /* 老浏览器没有 loadend 就算了 */ }
       }
@@ -224,5 +255,5 @@
     } catch { /* ignore */ }
   })
 
-  window.__dshProbe = { net, con, version: 3, startedAt: Date.now() }
+  window.__dshProbe = { net, con, version: 4, startedAt: Date.now() }
 })()

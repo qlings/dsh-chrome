@@ -30,7 +30,12 @@ globalThis.location = { href: 'https://example.com/page' }
 globalThis.URL = URL
 const fakeWindow = {
   addEventListener() {},
-  fetch: async () => ({ status: 200, headers: { get: (k) => (k === 'content-type' ? 'application/json' : k === 'content-length' ? '120' : null) } }),
+  fetch: async () => ({
+    status: 200,
+    headers: { get: (k) => (k === 'content-type' ? 'application/json' : k === 'content-length' ? '120' : null) },
+    // 1.19.0：探针可选记响应体，靠 clone().text() 读，不消费页面自己的 body
+    clone() { return { text: async () => '{"code":1,"msg":"缺少必要的参数，请检查：origin_code","token":"eyJhbGciOiJIUzI1NiJ9.x.y"}' } },
+  }),
 }
 globalThis.window = fakeWindow
 
@@ -59,6 +64,8 @@ console.log('1) fetch：头记下来了，凭据不落地')
   ok(!('Authorization' in row.headers) && !('Cookie' in row.headers), '凭据头整条丢掉', JSON.stringify(row.headers))
   ok(!JSON.stringify(row).includes('eyJhbGci'), 'JWT 没留在任何字段里')
   ok(row.body === '{"pageIndex":1}', '请求体照旧记着')
+  ok(/^p\d+$/.test(row.id || ''), '网络行有稳定 id（pN），networkDetail 能精确指到', row.id)
+  ok(!row.resp, '默认不记响应体', JSON.stringify(row.resp))
 }
 
 /* ------------------------------ 2. XHR 请求头 ------------------------------ */
@@ -104,6 +111,20 @@ console.log('4) window.__dshProbeHeaderLimit = 0 时不记头')
   const rows = fakeWindow.__dshProbe.net
   const row = rows[rows.length - 1]
   ok(!row.headers, '关掉后没有 headers 字段', JSON.stringify(row.headers))
+}
+
+/* ------------------------------ 5. 响应体预览（默认关） ------------------------------ */
+console.log('5) 响应体：默认不记，__dshProbeRespLimit 打开才记前 N 字')
+{
+  fakeWindow.__dshProbeRespLimit = 40
+  await fakeWindow.fetch('/api/with-resp', { method: 'POST', body: '{}' })
+  await new Promise((r) => setTimeout(r, 10))
+  const rows = fakeWindow.__dshProbe.net
+  const row = rows[rows.length - 1]
+  ok(typeof row.resp === 'string' && /缺少必要的参数/.test(row.resp), '打开后记了响应体前 40 字', row.resp)
+  ok(row.resp.length <= 60, '按 limit 截断（算上省略号）', String(row.resp && row.resp.length))
+  ok(row.respLen > 40 && row.respTruncated === true, '原始长度与截断标记都在', row.respLen + ' ' + row.respTruncated)
+  fakeWindow.__dshProbeRespLimit = 0
 }
 
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过')

@@ -1477,40 +1477,50 @@ export async function runCommand(cmd) {
 
       case 'networkDetail': {
         const { tab, via: v } = await loc(); via = v
-        try {
-          const out = await cdp.networkDetail(tab.id, {
-            requestId: p.requestId, index: p.index, filter: p.filter, match: p.match, maxChars: p.maxChars,
-          })
-          data = { ok: true, ...out, source: 'cdp', tab: tabBrief(tab) }
-          break
-        } catch (error) {
-          // CDP 缓冲里没有（请求发生在挂上之前）：从各帧探针里找，probe 现在带请求体
-          const probe = await readProbeAll(tab.id)
-          const test = cdp.urlMatcher(p.filter, String(p.match || '').toLowerCase())
-          let rows = p.filter ? probe.net.filter((r) => test(r.url)) : probe.net.slice()
-          if (p.frame != null) rows = rows.filter((r) => Number(r.frameId || 0) === Number(p.frame))
-          let row = null
-          if (p.requestId) row = rows.find((r) => String(r.id || '') === String(p.requestId)) || null
-          if (!row && p.index != null) {
-            const idx = Number(p.index) || 0
-            row = rows[rows.length - 1 - Math.max(0, idx)] || null
-          }
-          if (!row && rows.length) row = rows[rows.length - 1]
-          if (!row) throw error
-          data = {
-            ok: true, source: 'probe', fromProbe: true,
-            requestId: row.id || '', frameId: row.frameId, frameUrl: row.frameUrl,
-            method: row.method, url: row.url, status: row.status ?? null, statusText: '',
-            failed: row.failed || '',
-            requestHeaders: row.headers || {},
-            responseHeaders: {},
-            postData: row.body || '', postDataTruncated: Boolean(row.bodyTruncated),
-            body: '', bodyLength: 0,
-            bodyError: row.body ? '' : '探针只记请求体/请求头，不记响应体（避免把页面数据常驻内存）',
-            tab: tabBrief(tab),
-          }
-          break
+        // 1.19.0：探针行有 id（p1/p2…）了，按 id 或 source:"probe" 直接走探针，
+        // 不再被 CDP 缓冲里同名的新请求抢走（2026-11-26 排查退库接口时踩过）。
+        const wantProbe = String(p.source || '').toLowerCase() === 'probe' || /^p\d+$/.test(String(p.requestId || ''))
+        let cdpMiss = null
+        if (!wantProbe) {
+          try {
+            const out = await cdp.networkDetail(tab.id, {
+              requestId: p.requestId, index: p.index, filter: p.filter, match: p.match, maxChars: p.maxChars,
+            })
+            data = { ok: true, ...out, source: 'cdp', tab: tabBrief(tab) }
+            break
+          } catch (error) { cdpMiss = error }
         }
+        // CDP 缓冲里没有（请求发生在挂上之前）：从各帧探针里找，probe 带请求体/请求头
+        const probe = await readProbeAll(tab.id)
+        const test = cdp.urlMatcher(p.filter, String(p.match || '').toLowerCase())
+        let rows = p.filter ? probe.net.filter((r) => test(r.url)) : probe.net.slice()
+        if (p.frame != null) rows = rows.filter((r) => Number(r.frameId || 0) === Number(p.frame))
+        let row = null
+        if (p.requestId) row = rows.find((r) => String(r.id || '') === String(p.requestId)) || null
+        if (!row && p.index != null) {
+          const idx = Number(p.index) || 0
+          row = rows[rows.length - 1 - Math.max(0, idx)] || null
+        }
+        if (!row && rows.length) row = rows[rows.length - 1]
+        if (!row) {
+          throw cdpMiss || Object.assign(new Error('网络缓冲和页面探针里都没有匹配的请求'), { errorCode: 'NOT_FOUND' })
+        }
+        data = {
+          ok: true, source: 'probe', fromProbe: true,
+          requestId: row.id || '', frameId: row.frameId, frameUrl: row.frameUrl,
+          method: row.method, url: row.url, status: row.status ?? null, statusText: '',
+          failed: row.failed || '',
+          requestHeaders: row.headers || {},
+          responseHeaders: {},
+          postData: row.body || '', postDataTruncated: Boolean(row.bodyTruncated),
+          body: row.resp || '', bodyLength: Number.isFinite(Number(row.respLen)) ? Number(row.respLen) : String(row.resp || '').length,
+          bodyTruncated: Boolean(row.respTruncated),
+          bodyError: row.resp
+            ? ''
+            : '探针默认不记响应体：先在页面里设 window.__dshProbeRespLimit = 2000 再复现一次，或用 fetch 直接打这个接口',
+          tab: tabBrief(tab),
+        }
+        break
       }
 
       case 'networkClear': {

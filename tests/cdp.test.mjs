@@ -378,6 +378,35 @@ reset()
   ok(d.data.responseHeaders['Content-Type'] === 'application/json', '响应头带回来了')
 }
 
+/* ------------------------------ 11b2. networkDetail 的 index 属于 filter 命中集合 ------------------------------ */
+console.log('11b2) networkDetail：index 按 filter 命中集合取（1.19.0）')
+reset()
+{
+  const hit = (id, url) => {
+    emit('Network.requestWillBeSent', {
+      requestId: id, type: 'XHR',
+      request: { method: 'POST', url, headers: { 'Content-Type': 'application/json' }, postData: '{"q":1}' },
+    })
+    emit('Network.responseReceived', {
+      requestId: id,
+      response: { status: 200, statusText: 'OK', mimeType: 'application/json', headers: { 'Content-Type': 'application/json' } },
+    })
+  }
+  hit('ix1', 'https://example.com/api/ret/one')
+  hit('ix2', 'https://example.com/api/ret/two')
+  hit('ix3', 'https://example.com/api/other/three')
+  await new Promise((r) => setTimeout(r, 20))
+
+  const i0 = await call('networkDetail', { tabId: 7, filter: '/api/ret/', index: 0 })
+  const i1 = await call('networkDetail', { tabId: 7, filter: '/api/ret/', index: 1 })
+  ok(i0.ok && /\/api\/ret\/two$/.test(i0.data.url), 'index:0 取 filter 命中里最新的一条', i0.ok ? i0.data.url : i0.error)
+  ok(i1.ok && /\/api\/ret\/one$/.test(i1.data.url), 'index:1 取上一条（不是整个缓冲的倒数第 1 条）', i1.ok ? i1.data.url : i1.error)
+  const cands = i0.data.candidates || []
+  ok(cands.length === 2, '候选只算 filter 命中的两条', String(cands.length))
+  ok(cands[0].index === 0 && /\/two$/.test(cands[0].url), '候选 index:0 与上面的 index:0 同一条', JSON.stringify(cands[0]))
+  ok(cands[1].index === 1 && /\/one$/.test(cands[1].url), '候选 index:1 与上面一致', JSON.stringify(cands[1]))
+}
+
 /* ------------------------------ 12b. 协议卡住：必须超时，不许挂死 ------------------------------ */
 console.log('12b) CDP 超时与截图回退')
 reset()
