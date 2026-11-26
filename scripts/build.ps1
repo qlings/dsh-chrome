@@ -134,11 +134,23 @@ $zipName = "dsh-chrome-extension-$version.zip"
 $zipPath = Join-Path $OutDir $zipName
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 # 手工写条目：顶层目录固定 dsh-chrome-extension/，分隔符固定 '/'（.NET 默认会写反斜杠）
+# 相对路径一律走 GetFullPath 规范化后再比 —— 直接拿字符串长度做 Substring，
+# 在 CI runner 上遇到过前缀长度不一致、切出 "on/background.js" 这种脏条目的情况。
+$rootFull = [IO.Path]::GetFullPath($extDir).TrimEnd('\', '/')
+$sep = [IO.Path]::DirectorySeparatorChar
+$entryCount = 0
 $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
 try {
   foreach ($f in (Get-ChildItem $extDir -Recurse -File)) {
-    $rel = $f.FullName.Substring($extDir.Length + 1).Replace('\', '/')
+    $fileFull = [IO.Path]::GetFullPath($f.FullName)
+    $prefix = $rootFull + $sep
+    if (-not $fileFull.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      Fail "文件不在扩展目录下，无法算相对路径：$fileFull"
+    }
+    $rel = $fileFull.Substring($prefix.Length).Replace($sep, '/')
+    if ($rel -match '^\.|^/|^\\|:') { Fail "相对路径不合法：$rel" }
     $entry = $zip.CreateEntry("dsh-chrome-extension/$rel", [System.IO.Compression.CompressionLevel]::Optimal)
+    $entryCount++
     $out = $entry.Open()
     try {
       $in = [IO.File]::OpenRead($f.FullName)
@@ -147,7 +159,16 @@ try {
   }
 } finally { $zip.Dispose() }
 Remove-Item $stageExt -Recurse -Force
-"  $zipName  ({0:N1} KB)" -f ((Get-Item $zipPath).Length / 1KB)
+
+# 产出体检：条目必须全在 dsh-chrome-extension/ 下，且 manifest.json 在第一层
+$check = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+  $names = @($check.Entries | ForEach-Object { $_.FullName })
+} finally { $check.Dispose() }
+$bad = @($names | Where-Object { $_ -notmatch '^dsh-chrome-extension/' })
+if ($bad.Count -gt 0) { Fail ("zip 条目没落在 dsh-chrome-extension/ 下：`n  " + (($bad | Select-Object -First 5) -join "`n  ")) }
+if ($names -notcontains 'dsh-chrome-extension/manifest.json') { Fail 'zip 根上没有 manifest.json，条目层级被破坏了' }
+"  $zipName  ({0:N1} KB，{1} 个文件)" -f ((Get-Item $zipPath).Length / 1KB), $entryCount
 
 # ---------- 5. 插件 tgz ----------
 Step '打包插件 tgz（npm 布局：package/ 为根）'
