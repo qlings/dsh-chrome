@@ -73,8 +73,8 @@ New-Item -ItemType Directory -Force $extDir | Out-Null
 Copy-Item (Join-Path $root 'extension\*') $extDir -Recurse -Force
 
 New-Item -ItemType Directory -Force $OutDir | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
 $zipName = "dsh-chrome-extension-$version.zip"
 $zipPath = Join-Path $OutDir $zipName
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
