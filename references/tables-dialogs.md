@@ -54,3 +54,20 @@ errorCode: ELEMENT_DISABLED
 3. 文字是否被截断/换行？（`rowMatch:"includes"` + 唯一片段）
 4. 是否有同名行？（加 `index` 或 `equals`）
 5. 点完没反应？（看是否 disabled；看是否被浮层遮挡；加 `expect:{changed:true}`）
+
+## 7. 同一区块多个同名按钮（Element Plus 折叠面板）
+
+工单/详情页常把「消耗、退库、旧件退库」各做成一个 `el-collapse-item`，每块都有「新增/保存/删除/提交/刷新」。`click text:"提交"` 会命中多个，`outline` 里也看不出属于哪块。
+
+按区块标题 scoping 最稳（2026-11-26 维修工单退库实测）：
+
+```js
+const sec = [...document.querySelectorAll('.el-collapse-item')]
+  .find((x) => x.innerText.includes('备品备件退库'));
+[...sec.querySelectorAll('button')].find((b) => b.innerText.trim() === '提交').click();
+```
+
+- 先确认勾选：`sec.querySelector('.el-table__body input[type=checkbox]').checked`；没勾就先 `check`，否则提交按钮即使可点也会被前端拦下。
+- 同名按钮尽量别用坐标点击：折叠面板一滚动，坐标就失效。
+- `outline` 对 Node-RED 画布这类几万个可交互元素的页面基本不可用；直接在 `eval` 里 scoping 更快（Node-RED 的调试见 `mom-backend.md` §8）。
+- Vue 组件实例取不到（`__vueParentComponent` 为空）时，不要硬递归 vnode：先 `vue` + `selector`，仍不行就退回 DOM scoping。

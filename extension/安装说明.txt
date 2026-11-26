@@ -1,4 +1,4 @@
-DSH Chrome 桥 v1.18.0 —— 安装说明
+DSH Chrome 桥 v1.19.0 —— 安装说明
 =================================
 
 让 DeepSeek Harness（DSH）接管 Chrome：读页面、点按钮、填表、多标签对照、
@@ -8,7 +8,7 @@ DSH Chrome 桥 v1.18.0 —— 安装说明
 
 【前提】
 - 这台电脑上要跑着 DSH，且 dsh-chrome 插件已装好（桥在 127.0.0.1:18765）。
-- 插件版本与扩展版本尽量一致（本包是 1.18.0）。
+- 插件版本与扩展版本尽量一致（本包是 1.19.0）。
 
 【安装】Chrome 只接受「加载已解压的扩展程序」，不支持双击 crx：
 1. 把 dsh-chrome-extension 整个文件夹放到固定位置，别放临时目录
@@ -26,7 +26,7 @@ DSH Chrome 桥 v1.18.0 —— 安装说明
 
 【验证】
   PowerShell:  Invoke-RestMethod http://127.0.0.1:18765/status
-  预期:        version 1.18.0，ext.version 也是 1.18.0
+  预期:        version 1.19.0，ext.version 也是 1.19.0
 
 【升级】
 - 只改了插件（lib/）→ 重启 DSH。

@@ -2,6 +2,22 @@
 
 每个版本都说清楚「哪次真实任务卡住了」和「现在怎么解」。按版本倒序。
 
+## 1.19.0 改了什么（一次维修工单退库接口排查带出来的）
+
+2026-11-26 顺着「维修工单退库提交报缺少必要参数」排查时，真正拖时间的是取证工具本身：
+
+| 卡点 | 现在怎么解 |
+|---|---|
+| `networkDetail` 传 `filter + index` 取到的是整个缓冲倒数第 N 条，候选却按 filter 算，照着候选下标选会落到隔壁接口（连踩 3 次） | index 统一为「filter 命中集合里倒数第 N 条」，候选 index 可直接回传；无 filter 时行为不变 |
+| 报错发生在 CDP 挂上之前，探针行没有 id，既抢不过 CDP 也指不中 | 探针行分配 `pN` id；`networkDetail({requestId:"p12"})`、`source:"probe"`、`replay` 都能精确取到 |
+| 探针只记请求体，要看「接口返回了什么」只能重新点一次提交（还多建了一张单） | 加 opt-in：页面里 `window.__dshProbeRespLimit = 2000` 才记响应体前 N 字，默认仍不记 |
+| `fetch` 带 `saveTo` 就强解 JSON，拉 `.js`/`.html` 必刷「解析失败」 | 页面侧按 content-type/首字符嗅探；只有显式 `json:true` 才把解析失败当错误 |
+| 网关 15s 超时返回 404 HTML，回执不提示，误判成「接口不存在」 | `fetch`/`networkDetail` 对 4xx + text/html 追加网关超时提示 |
+| `networkLog` 时间戳只到秒，同秒多次提交分不清；pending 显示 `…` | 时间戳带毫秒；pending 明示 |
+| `sourceSearch` 只报「28/28 个脚本」，0 命中时不知道扫了谁；懒加载的模块搜不到 | 回执列出扫过的文件；新增 `scripts:[...]` 显式指定，支持相对路径 |
+
+> 升级注意：`cdp.js`/`probe.js`/`executor.js`/`page.js` 与 `lib/` 都有改动 —— 重载扩展 + 目标页 F5 **且**重启 DSH 才全部生效。判据：`diag` 里 `cs.pageVersion` 和 `status` 的扩展版本都是 `1.19.0`。
+
 ## 1.18.0 改了什么（把文档收进插件）
 
 之前工具在插件里、文档在 `~/.dsh/skills/chrome`，两份东西：换机器、升级插件、或者只是忘了同步，工具和配方就会对不上。现在：

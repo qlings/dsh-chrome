@@ -85,6 +85,26 @@
 
 - 门户壳页只有菜单，业务在 iframe。`frames` 查 frameId；`read` 会自动下沉，`fetch` 的相对地址按当前帧解析。
 - 抓接口先 `networkLog`（含各帧），再 `networkDetail` 看请求头，最后 `replay` 原样重发做对照。
-- `networkDetail` 的 `filter` 是子串匹配：`routeActivity/query` 会命中 `queryActivityInfo`，用 `match:"path"` 或 `index` 选；响应体要全文就加 `saveTo`。
+- `networkDetail` 的 `filter` 是子串匹配：`routeActivity/query` 会命中 `queryActivityInfo`，用 `match:"path"` 或 `index` 选（index 在 filter 命中集合里数，0=最新）；响应体要全文就加 `saveTo`。
+- 行尾 `#pN` 是页面探针行：可以直接 `requestId:"pN"`；探针默认不记响应体，要看返回先在页面里 `window.__dshProbeRespLimit = 2000` 再复现。
 - 一次抓多个接口：`fetch` + `urls` + `saveToDir`，每个接口给一组表头用 `headersList`（与 `urls` 对齐）。
 - 需要写操作时先 `netBlock` 只登记，确认提交内容再放行。
+
+## 8. 业务流引擎（Node-RED）只读排查
+
+接口管理背后是 Node-RED 4.x（`httpAdminRoot=/flow`、`httpNodeRoot=/esb/api`），流程存在数据库 `flows.flow_data` 里。
+
+- **读单条流程**：`GET /flow/flow/<flow_id>`，返回 `{id,label,disabled,info,nodes:[...]}`（每个节点带 `func`/`url`/`rules`/`wires`）。
+- **绝对不要** `POST /flow/flows`：那是“保存/部署”，会覆盖线上流程。
+- 判断有没有未保存改动：`RED.nodes.dirty()` 为 false，且部署按钮 class 里含 `disabled`，表示“已部署且无未保存改动”。
+- **读 debug 面板**（流程调试的现场证据，比猜快得多）：
+
+```js
+[...document.querySelectorAll('.red-ui-debug-msg')]
+  .map((n) => (n.innerText || '').replace(/\s+/g, ' '))
+  .slice(-20)
+```
+
+- 部署窗口期 http-in 会短暂 404；刚部署完遇到 404 先等一两秒再试。
+- `/esb/api/*` 走网关，约 15s 超时会返回 404 HTML「Sorry, Page Not Found」——不是路由不存在。
+- 流程里 `http request` 报 `RequestError: socket hang up`：多半是上游（NC/WMS）60s 没回，先查上游日志，别在 Node-RED 里反复重试（可能重复建单）。

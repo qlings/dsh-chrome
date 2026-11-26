@@ -41,7 +41,7 @@
 ```powershell
 # 1) 找一个临时目录解开 tgz（npm 包的根目录叫 package/）
 New-Item -ItemType Directory -Force "$env:TEMP\dsh-chrome-pkg" | Out-Null
-tar -xzf .\dsh-chrome-1.18.0.tgz -C "$env:TEMP\dsh-chrome-pkg"
+tar -xzf .\dsh-chrome-1.19.0.tgz -C "$env:TEMP\dsh-chrome-pkg"
 
 # 2) 拷进 desktop profile 的 node_modules，目录名必须是 dsh-chrome
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-chrome" | Out-Null
@@ -93,7 +93,7 @@ Invoke-RestMethod http://127.0.0.1:18765/status
 预期返回类似：
 
 ```json
-{ "ok": true, "version": "1.18.0", "ext": { "id": "...", "version": "1.18.0" }, "pending": 0 }
+{ "ok": true, "version": "1.19.0", "ext": { "id": "...", "version": "1.19.0" }, "pending": 0 }
 ```
 
 `ext.version` 为空说明扩展还没连上——回去看第 1 步的第 6、7 项。

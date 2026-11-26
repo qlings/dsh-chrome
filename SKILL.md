@@ -3,7 +3,7 @@ name: chrome
 description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当前页面内容，多标签跳转和关联检查，按行文本勾选（幂等，重复跑不会点反），读长文本，批量流程一次跑完，用已登录账户自动登录，每次操作都落盘记录。当用户说“打开这个网页”“读一下页面上写了什么”“帮我填表/提交”“勾选这些项”“登录这个网站”“在几个页面之间对照检查”“截图这个页面”时使用。
 ---
 
-# chrome —— 接管本机 Chrome（v1.18.0）
+# chrome —— 接管本机 Chrome（v1.19.0）
 
 工具名 `chrome`，动作全在 `action` 参数里。桥默认 `127.0.0.1:18765`（被占时 18766–18769）。Chrome 需装「DSH Chrome 桥」扩展。
 
@@ -59,10 +59,13 @@ description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当
 ```
 
 - 过滤是「先过滤再取最新 N 条」；`unique:true` 去重，`ignore` 排心跳。
-- `networkDetail` 的 `filter` 默认**子串匹配**，`routeActivity/query` 会连 `queryActivityInfo` 一起命中：用 `match:"path"`（忽略 query 的路径相等）或 `match:"regex"`；命中多条时回执会列候选，用 `index` 选。
+- `networkDetail` 的 `filter` 默认**子串匹配**，`routeActivity/query` 会连 `queryActivityInfo` 一起命中：用 `match:"path"`（忽略 query 的路径相等）或 `match:"regex"`；命中多条时回执会列候选，`index` 就在**filter 命中集合**里数（0=最新，1.19.0 起候选的 index 可直接回传）。
+- 行尾 `#xxx` 是 CDP 的 requestId，`#pN` 是页面探针行的 id：探针行也能 `networkDetail({requestId:"p12"})` / `replay`。
+- **探针行默认没有响应体**（只记请求体/请求头）；要抓“接口报错的返回”，先在页面里 `window.__dshProbeRespLimit = 2000` 再复现一次，或用 `fetch` 直接打这个接口。
 - `networkDetail` 支持 `saveTo`（响应体全文落盘，JSON 自动缩进）；`replay` 也支持 `saveTo`。
-- 探针只能记**前 1200 字**请求体（`postDataTruncated`）；replay 会告警——要完整就显式传 `body`。
+- 探针只能记**前 1200 字**请求体（`postDataTruncated`），响应体默认不记；replay 会告警——要完整就显式传 `body`。
 - 401 先看页面自己的请求头：很多后台只收 POST，GET 会被网关直接 401。
+- **4xx + `text/html` 不等于接口不存在**：内网网关超时（常见 15s）也会返回 404 HTML「Sorry, Page Not Found」；回执里会提示，先看耗时再判断。
 - 在页面上下文发请求：`fetch`（cookie 自动带、相对地址按当前帧解析）。
   `body` 传对象会自动 JSON 化并补头；**传 JSON 字符串** 1.16.0 起也会识别并补 `Content-Type`。
 - 鉴权：`authFrom:{"key":"m5_token"}` 自动从 localStorage 取令牌加头（值不回显）；带 `typeKey` 时拼成 `Bearer <token>`。
@@ -72,7 +75,7 @@ description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当
 ### 4.1 接口取证：五步，别边猜边试
 
 1. `networkLog`（`unique:true`）确认接口清单和 `moduleCode`/`X-*` 头。
-2. `networkDetail` 抄请求头 + 请求体；`match:"path"` 防串接口。
+2. `networkDetail` 抄请求头 + 请求体；`match:"path"` 防串接口。先看行尾有没有 `#id`：有就传 `requestId`，探针行（`#pN`）同理；都没有再用 `filter` + 最新一条。
 3. `fetch` + `authFrom` + `saveTo` 落盘（**每个接口的 `moduleCode` 常常不同**：批量用 `headersList` 与 `urls` 对齐，别为此拆成多次调用）。
 4. 用脚本解析落盘文件核对字段，别 `read` 单行大 JSON。
 5. 要复算就写清公式（来源字段 → 算式 → 期望值），拿同一批多个对象交叉验证，能一次排掉巧合。
@@ -118,7 +121,7 @@ description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当
 
 | 码 | 处理 |
 |---|---|
-| `NOT_FOUND` | 先 outline/rows，再换 text/rowText；注意 iframe |
+| `NOT_FOUND` | 先 outline/rows，再换 text/rowText；注意 iframe。若是 `networkDetail`，看是不是探针历史行（`#pN`）或响应在 CDP 挂上之前 |
 | `MULTI_MATCH` | 写全条件、`exact:true`、`rowMatch:"equals"` 或 `index` |
 | `ELEMENT_DISABLED` | 先满足前置条件，或 `vue` + `call`；确要硬点 `force:true` |
 | `CLICK_NOT_APPLIED` | 有状态元素改 `check`；加 `expect` 验证 |
@@ -138,7 +141,8 @@ description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当
 - 1.16.0 的改动：`page.js`（fetch 头、disabled、rowText index）+ `lib`（screenshot saveTo、vue call）→ 两处都要更新。
 - 1.17.0 的改动：`cdp.js`（networkDetail 的 match/候选/全文）+ `executor.js`（replay 请求体截断标记）+ `page.js`（replay maxChars:0）+ `lib`（networkDetail/replay 落盘、fetch headersList、JSON 自动缩进）→ 扩展重载 + 重启 DSH 都要做。
 - 1.18.0 的改动：仅 `lib`（skill 随插件注册 + 首次/失败提示 + 热重载僵尸桥自动让位），扩展代码只改了版本号；重载扩展 + 重启 DSH。
-- 判据：`diag` 里 `cs.pageVersion` 应为 `1.18.0`；`status` 里扩展版本 `1.18.0`。
+- 1.19.0 的改动：`cdp.js`（networkDetail 的 index 按 filter 命中集合取）+ `probe.js`（探针行 pN id、可选响应体 `__dshProbeRespLimit`、version=4）+ `executor.js`（探针行可按 id/source 精确取）+ `page.js`（JSON 嗅探，不再因 saveTo 刷解析失败）+ `lib`（404 HTML 网关提示、毫秒时间戳、sourceSearch 名单/scripts）→ 扩展重载 + 页面 F5 + 重启 DSH。
+- 判据：`diag` 里 `cs.pageVersion` 应为 `1.19.0`；`status` 里扩展版本 `1.19.0`。
 
 ## 10. 安全
 
