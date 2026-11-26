@@ -60,6 +60,31 @@ console.log('1) fetch · 状态 / 长度 / 预览 / 落盘')
   ok(text === body, '落盘的是完整响应体')
 }
 
+/* ------------------------------ 1b. saveTo 不再强开 JSON；404 HTML 给出网关提示 ------------------------------ */
+console.log('1b) fetch · 落盘不强制 JSON 解析；404 HTML 点破是网关页')
+{
+  let seen = null
+  const r = await act(bridgeOf({
+    fetch: (p) => {
+      seen = p
+      return {
+        ok: true, status: 200, statusText: 'OK', url: 'http://192.168.10.231:7077/eam/js/page.js',
+        body: 'import x from "y"', length: 18, truncated: false, contentType: 'application/javascript', ms: 2, tab,
+      }
+    },
+  }), 'fetch', { url: '/eam/js/page.js', saveTo: 'page.js' })
+  ok(seen && seen.json !== true, '只有 saveTo 时不下发 json:true（不再刷解析失败）', seen && seen.json)
+  ok(!/json:true 但解析失败/.test(r.message), '回执里没有 JSON 解析噪声', r.message)
+
+  const g = await act(bridgeOf({
+    fetch: () => ({
+      ok: true, status: 404, statusText: 'Not Found', url: 'http://192.168.10.231:7077/esb/api/x',
+      body: 'Sorry, Page Not Found', length: 21, truncated: false, contentType: 'text/html', ms: 15008, tab,
+    }),
+  }), 'fetch', { url: '/esb/api/x', method: 'post' })
+  ok(/可能是网关|网关超时/.test(g.message), '404 + HTML 提示网关超时页', g.message.split('\n').slice(-1)[0])
+}
+
 /* ------------------------------ 2. 401 鉴权提示 ------------------------------ */
 console.log('2) fetch · 401 给出「去哪儿看鉴权」')
 {

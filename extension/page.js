@@ -15,7 +15,7 @@
   'use strict'
 
   // 页面世界拿不到 chrome.runtime，版本只能手写；升级时与 manifest.json 的 version 同步。
-  const PAGE_VERSION = '1.18.0'
+  const PAGE_VERSION = '1.19.0'
 
   /* ------------------------------ 帧作用域 ------------------------------
    * 同源 iframe 在门户类页面里是常态（壳页 + 业务 iframe）：以前 read/click/
@@ -1567,8 +1567,14 @@
       } catch { /* 拿不到响应头就算了 */ }
       let json
       let jsonError = ''
-      if (o.json === true && !readError && text) {
-        try { json = JSON.parse(text) } catch (e) { jsonError = String((e && e.message) || e) }
+      if (!readError && text) {
+        // 1.19.0：不再因为 saveTo 就强解 JSON——拉 `.js` / `.html` 会刷一排「解析失败」。
+        // 看起来像 JSON 才试（content-type 或首字符）；只有显式 o.json 才把失败当错误报。
+        const ct = String(respHeaders['content-type'] || '')
+        const looksJson = /json/i.test(ct) || /^\uFEFF?\s*[{[]/.test(text)
+        if (o.json === true || looksJson) {
+          try { json = JSON.parse(text) } catch (e) { if (o.json === true) jsonError = String((e && e.message) || e) }
+        }
       }
       return {
         ok: true,
