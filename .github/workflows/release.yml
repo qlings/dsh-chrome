@@ -29,10 +29,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: powershell
         run: |
+          # 注意：run 块里不要写中文 —— windows runner 用 powershell 5.1 执行临时脚本，
+          # 文件是 UTF-8 无 BOM，中文会被按 ANSI 读成乱码并导致语法错误。
           $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $tag = '${{ github.ref_name }}'.TrimStart('v')
-          if ($v -ne $tag) { Write-Error "tag=$tag 但 package.json=$v"; exit 1 }
-          Write-Host "版本 $v ✓"
+          $tag = $env:GITHUB_REF_NAME.TrimStart('v')
+          if ($v -ne $tag) { Write-Error "tag=$tag but package.json=$v"; exit 1 }
+          Write-Host "version $v OK"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
