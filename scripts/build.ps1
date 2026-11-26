@@ -106,9 +106,18 @@ foreach ($item in @('lib', 'extension', 'references', 'SKILL.md', 'README.md', '
 $tgzName = "dsh-chrome-$version.tgz"
 $tgzPath = Join-Path $OutDir $tgzName
 if (Test-Path $tgzPath) { Remove-Item $tgzPath -Force }
+# 在暂存目录里用「相对文件名」出包：Git for Windows 自带的 GNU tar 会把 D:\... 当成
+# 远程主机（host:path），传绝对路径会报 resolve failed。
+$tmpTgz = 'dsh-chrome-out.tgz'
 Push-Location $stagePkg
-try { & tar -czf $tgzPath package; if ($LASTEXITCODE -ne 0) { Fail 'tar 打包失败' } }
-finally { Pop-Location }
+try {
+  $tarLog = & tar -czf $tmpTgz package 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $tarLog | ForEach-Object { "  $_" }
+    Fail "tar 打包失败（exit $LASTEXITCODE）"
+  }
+} finally { Pop-Location }
+Move-Item (Join-Path $stagePkg $tmpTgz) $tgzPath -Force
 Remove-Item $stagePkg -Recurse -Force
 "  $tgzName  ({0:N1} KB)" -f ((Get-Item $tgzPath).Length / 1KB)
 
