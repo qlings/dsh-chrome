@@ -29,7 +29,7 @@
 
 ## 能做什么
 
-59 个动作，覆盖「看页面 → 改页面 → 抓接口 → 查证据」的整条链路：
+61 个动作，覆盖「看页面 → 改页面 → 抓接口 → 查证据」的整条链路：
 
 | 类别 | 动作 |
 |---|---|
@@ -66,8 +66,8 @@
 
 | 文件 | 大小 | 用途 |
 |---|---|---|
-| `dsh-chrome-extension-1.18.0.zip` | ~180 KB | Chrome 扩展，解压后「加载已解压的扩展程序」 |
-| `dsh-chrome-1.18.0.tgz` | ~200 KB | DSH 插件包，`dsh plugin add` 或解压到 profile 的 `node_modules/` |
+| `dsh-chrome-extension-1.18.0.zip` | ~101 KB | Chrome 扩展，解压后「加载已解压的扩展程序」 |
+| `dsh-chrome-1.18.0.tgz` | ~202 KB | DSH 插件包，`dsh plugin add` 或解压到 profile 的 `node_modules/` |
 
 每个 Release 都带 `SHA256SUMS.txt`，Windows 上核对：
 
