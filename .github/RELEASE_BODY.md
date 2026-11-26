@@ -2,18 +2,19 @@
 
 | 文件 | 给谁 | 怎么用 |
 |---|---|---|
-| `dsh-chrome-extension-1.18.0.zip` | Chrome | 解压到固定目录 → `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序 → 选 `dsh-chrome-extension/` |
-| `dsh-chrome-1.18.0.tgz` | DSH | 解压到 `~/.dsh/profiles/desktop/node_modules/dsh-chrome`，再在 `cordis.patch.yml` 里插入 bundle |
-| `SHA256SUMS.txt` | 校验 | `Get-FileHash .\dsh-chrome-extension-1.18.0.zip -Algorithm SHA256` 对一下 |
+| `dsh-chrome-extension-1.19.0.zip` | Chrome | 解压到固定目录 → `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序 → 选 `dsh-chrome-extension/` |
+| `dsh-chrome-1.19.0.tgz` | DSH | 解压到 `~/.dsh/profiles/desktop/node_modules/dsh-chrome`，再在 `cordis.patch.yml` 里插入 bundle |
+| `SHA256SUMS.txt` | 校验 | `Get-FileHash .\dsh-chrome-extension-1.19.0.zip -Algorithm SHA256` 对一下 |
 
 完整步骤（含权限、升级、排查）：[INSTALL.md](https://github.com/qlings/dsh-chrome/blob/main/INSTALL.md)。
 
 ## 这一版是什么
 
-`1.18.0` 把用法文档收进插件本体：`SKILL.md` + `references/` 通过 `ctx.skills` 注册成 skill「chrome」，不再依赖 `~/.dsh/skills`，换机器不会出现「工具和配方对不上」。
+`1.19.0` 修的是「排查接口时取证工具本身不好用」：`networkDetail` 的 `index` 改成按 `filter` 命中集合取（候选下标可直接回传）；页面探针行有了 `pN` id，可按 id `networkDetail` / `replay`，并可用 `window.__dshProbeRespLimit` 可选记录响应体；`fetch` 拉 `.js` 不再刷 JSON 解析失败，4xx + `text/html` 会提示“可能是网关超时页”；`networkLog` 时间戳到毫秒，`sourceSearch` 列出实际扫描的文件并支持 `scripts` 指定。
 
 ## 升级注意
 
+- **1.19.0 扩展和 `lib/` 都有改动**：`chrome://extensions` 点刷新箭头 → 目标页 **F5** → 重启 DSH，三步都要做。
 - 只升级扩展：`chrome://extensions` 点刷新箭头，再到目标页 **F5**（只重载扩展不刷页面，旧标签里还是旧脚本）。
 - 只升级插件（`lib/` 有改动）：重启 DSH。
 - 两边版本尽量一致，版本差太多时会提示方向。
