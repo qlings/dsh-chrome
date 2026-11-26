@@ -18,6 +18,61 @@ if (-not $OutDir) { $OutDir = Join-Path $root 'dist' }
 function Fail($msg) { Write-Host "✗ $msg" -ForegroundColor Red; exit 1 }
 function Step($msg) { Write-Host "→ $msg" -ForegroundColor Cyan }
 
+# 写 npm 风格的 .tgz：ustar 头 + gzip，条目以 package/ 开头。
+# 纯 .NET 实现，不调系统 tar —— CI runner 上的 GNU tar 会把 D:\ 当远程主机，
+# bsdtar 在部分环境还会崩（exit 0xC0000005）。
+function Write-Tgz {
+  param([string]$SourceDir, [string]$DestinationPath)
+
+  $ascii = [Text.Encoding]::ASCII
+  $utf8 = [Text.Encoding]::UTF8
+  $mtime = [int64]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
+
+  function Put-Octal([byte[]]$hdr, [int]$offset, [int]$width, [int64]$value) {
+    $s = [Convert]::ToString($value, 8).PadLeft($width - 1, '0')
+    $b = $ascii.GetBytes($s)
+    [Array]::Copy($b, 0, $hdr, $offset, $b.Length)
+  }
+
+  $files = @(Get-ChildItem $SourceDir -Recurse -File | Sort-Object FullName)
+  $fs = [IO.File]::Open($DestinationPath, [IO.FileMode]::Create, [IO.FileAccess]::Write)
+  $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionMode]::Compress)
+  try {
+    foreach ($f in $files) {
+      $rel = $f.FullName.Substring($SourceDir.Length + 1).Replace('\', '/')
+      $nameBytes = $utf8.GetBytes($rel)
+      if ($nameBytes.Length -gt 100) { Fail "路径超过 100 字节，ustar 头放不下：$rel" }
+      $data = [IO.File]::ReadAllBytes($f.FullName)
+      $hdr = New-Object byte[] 512
+      [Array]::Copy($nameBytes, 0, $hdr, 0, $nameBytes.Length)
+      Put-Octal $hdr 100 8 420          # mode 0644
+      Put-Octal $hdr 108 8 0            # uid
+      Put-Octal $hdr 116 8 0            # gid
+      Put-Octal $hdr 124 12 ([int64]$data.Length)
+      Put-Octal $hdr 136 12 $mtime
+      $hdr[156] = 48                    # typeflag '0' = 普通文件
+      [Array]::Copy($ascii.GetBytes('ustar'), 0, $hdr, 257, 5)   # magic "ustar\0"
+      $hdr[262] = 0
+      $hdr[263] = 48; $hdr[264] = 48    # version "00"
+      for ($i = 148; $i -lt 156; $i++) { $hdr[$i] = 32 }        # 校验和字段先填空格
+      $sum = 0
+      foreach ($b in $hdr) { $sum += $b }
+      $chk = $ascii.GetBytes(([Convert]::ToString($sum, 8).PadLeft(6, '0')))
+      [Array]::Copy($chk, 0, $hdr, 148, 6)
+      $hdr[154] = 0
+      $hdr[155] = 32
+      $gz.Write($hdr, 0, 512)
+      if ($data.Length -gt 0) { $gz.Write($data, 0, $data.Length) }
+      $pad = (512 - ($data.Length % 512)) % 512
+      if ($pad -gt 0) { $gz.Write((New-Object byte[] $pad), 0, $pad) }
+    }
+    $gz.Write((New-Object byte[] 1024), 0, 1024)
+  } finally {
+    $gz.Dispose()
+    $fs.Dispose()
+  }
+}
+
 # ---------- 1. 版本号三处一致 ----------
 Step '校验版本号（package.json / manifest.json / lib/index.js）'
 
@@ -106,18 +161,9 @@ foreach ($item in @('lib', 'extension', 'references', 'SKILL.md', 'README.md', '
 $tgzName = "dsh-chrome-$version.tgz"
 $tgzPath = Join-Path $OutDir $tgzName
 if (Test-Path $tgzPath) { Remove-Item $tgzPath -Force }
-# 在暂存目录里用「相对文件名」出包：Git for Windows 自带的 GNU tar 会把 D:\... 当成
-# 远程主机（host:path），传绝对路径会报 resolve failed。
-$tmpTgz = 'dsh-chrome-out.tgz'
-Push-Location $stagePkg
-try {
-  $tarLog = & tar -czf $tmpTgz package 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    $tarLog | ForEach-Object { "  $_" }
-    Fail "tar 打包失败（exit $LASTEXITCODE）"
-  }
-} finally { Pop-Location }
-Move-Item (Join-Path $stagePkg $tmpTgz) $tgzPath -Force
+# 不调系统 tar：CI runner 上的 GNU tar 会把 D:\... 当远程主机，bsdtar 在部分环境直接崩
+# （exit 0xC0000005）。tar(ustar) + gzip 都在 .NET 里手写，行为到处一样。
+Write-Tgz -SourceDir $stagePkg -DestinationPath $tgzPath
 Remove-Item $stagePkg -Recurse -Force
 "  $tgzName  ({0:N1} KB)" -f ((Get-Item $tgzPath).Length / 1KB)
 
