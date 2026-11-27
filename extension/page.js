@@ -15,7 +15,7 @@
   'use strict'
 
   // 页面世界拿不到 chrome.runtime，版本只能手写；升级时与 manifest.json 的 version 同步。
-  const PAGE_VERSION = '1.19.0'
+  const PAGE_VERSION = '1.20.0'
 
   /* ------------------------------ 帧作用域 ------------------------------
    * 同源 iframe 在门户类页面里是常态（壳页 + 业务 iframe）：以前 read/click/

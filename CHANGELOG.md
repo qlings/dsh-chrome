@@ -2,6 +2,21 @@
 
 每个版本都说清楚「哪次真实任务卡住了」和「现在怎么解」。按版本倒序。
 
+## 1.20.0 改了什么（一次 MOM 审批流「所有人必须同意」排查带出来的）
+
+2026-11-27 查「审批流配了所有人必须同意，一人同意就结束」：配置侧只花了几分钟，剩下时间全耗在 iframe 与取证上——用户说「三个界面都开着」而 `tabs` 只有两个；审批页在 `display:none` 的 iframe 里；点完「同意」页面跳转、旧 frameId 立刻失效；重放模板接口时 401 错误页还盖掉了刚抓的 JSON。
+
+| 卡点 | 现在怎么解 |
+|---|---|
+| 提交审批后 iframe 导航走了，再对旧 frameId 操作报 `INJECT_FAILED`「这个页面不让注入扩展脚本」，排查方向被带到 CSP | executor 认 Chrome 的 `No frame with id ...` 原文，改报 `FRAME_STALE`，并说明「iframe 跳转后 frameId 会变，先 `frames`」 |
+| `replay` 没带凭据 → 401，网关 HTML 被写进指定的 `.json`，回执还写「已落盘（全量）」 | 失败响应（≥400 或 HTML 错误页）另存为 `xxx.err.html`，目标文件不覆盖；401 回执直接给 `authFrom` 提示 |
+| `saveTo` 批量抓 22 个同 URL、不同 body 的模板，文件名只有 `01_/02_…`，只能按顺序反推 | `fetch` 加 `nameFrom:"字段名"`（如 `wftmpCode`）→ `01_F20261001111114225.json`；取不到值时回落 URL 命名并在回执说明 |
+| `read frame=173` 实际读的是子帧 175，回执看不出来，容易张冠李戴 | `read` 自动下沉时回执写明「自动下沉到 iframe「标题」+ src」，并提示你传的 frame 不是它 |
+| `outline` 对 `display:none` 的 iframe 列 0 个元素，只写「跳过 N 个隐藏」，不给下一步 | 全部隐藏时回执直接给打法：`eval` 帧内 `.click()`，提交后回查 `networkLog` |
+| 文档没写「多个界面 = 一个壳页多个 iframe」「`replay` 也支持 `authFrom`」 | `SKILL.md` §0/§3/§4/§8 补齐；新增 `references/mom-workflow.md`（模板/任务/审批详情接口、`step_sts`/`task_sts` 语义、多人审批是否生效的三步判据） |
+
+> 升级注意：`executor.js` 与 `page.js`（版本号）有改动，`lib/` 也有 —— 重载扩展 + 目标页 F5 **且**重启 DSH。判据：`diag` 里 `cs.pageVersion` 和 `status` 的扩展版本都是 `1.20.0`。
+
 ## 1.19.0 改了什么（一次维修工单退库接口排查带出来的）
 
 2026-11-26 顺着「维修工单退库提交报缺少必要参数」排查时，真正拖时间的是取证工具本身：
