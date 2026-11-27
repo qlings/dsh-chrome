@@ -108,5 +108,37 @@ const fakeBridge = (handler) => ({ call: async (action, params) => handler(actio
   ok(!r.ok && /不认识的 action/.test(r.message), '未知 action 明确报错')
 }
 
+/* 8. 帧已不存在 → FRAME_STALE，别再说成「页面不让注入」 */
+{
+  console.log('8) 陈旧 frameId')
+  const bridge = fakeBridge(() => {
+    const e = new Error('frame 176 已经不存在了：No frame with id 176 in tab with id 740032571。')
+    e.errorCode = 'FRAME_STALE'
+    throw e
+  })
+  const r = await performAction(bridge, 'outline', { frame: 176 }, { root: 'C:/tmp/chrome-test' })
+  ok(!r.ok, '失败')
+  ok(/\[FRAME_STALE\]/.test(r.message), '错误码可见', r.message)
+  ok(/不是 CSP/.test(r.message), '点破「不是 CSP/不是注入被禁」', r.message)
+  ok(/action=frames/.test(r.message), '给出下一步（重拿帧表）', r.message)
+}
+
+/* 9. read 自动下沉到子 iframe 时，回执要说清读的是谁 */
+{
+  console.log('9) read 自动下沉的帧归属')
+  const bridge = fakeBridge((action) => {
+    if (action !== 'read') throw new Error('unexpected ' + action)
+    return {
+      ok: true, tab, url: 'https://e.com/detail', title: '任务详情', textLength: 343, offset: 0,
+      text: '基本信息…', truncated: false,
+      frame: { auto: true, src: 'https://e.com/wf/history-step.html?x=1', title: '审批详情' },
+    }
+  })
+  const r = await performAction(bridge, 'read', { frame: 173 }, { root: 'C:/tmp/chrome-test' })
+  ok(r.ok, 'read 成功')
+  ok(/自动下沉到 iframe「审批详情」/.test(r.message), '标出下沉目标', r.message.split('\n').slice(0, 5).join(' | '))
+  ok(/你传的是 frame=173/.test(r.message), '提醒传的帧不是读到的帧')
+}
+
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过')
 process.exit(fails ? 1 : 0)

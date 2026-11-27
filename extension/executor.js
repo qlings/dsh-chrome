@@ -57,6 +57,7 @@ const ERR = {
   PAGE_ERROR: 'PAGE_ERROR',
   NO_RESULT: 'NO_RESULT',
   FRAME_NOT_FOUND: 'FRAME_NOT_FOUND',
+  FRAME_STALE: 'FRAME_STALE',
 }
 
 /**
@@ -138,6 +139,21 @@ async function viaInject(tabId, func, args, world, timeoutMs, frameId) {
         errorCode: ERR.INJECT_TIMEOUT,
         error: 'executeScript 注入没返回（' + msg + '）。页面可能禁止注入、或这个标签是 chrome:// 内置页。刷新页面再试。',
       }
+    }
+    // 帧/标签已经不存在（页面导航过、子帧被移除）：Chrome 的原文是
+    // "No frame with id N in tab with id M"。以前一律归成 INJECT_FAILED，回执说
+    // 「这个页面不让注入扩展脚本」，排查方向直接被带到 CSP 上——2026-11-27 在
+    // MOM 审批页点完「同意」触发 goBack 跳转后，对旧 frameId 调 outline 就中了这一枪。
+    if (/No frame with id|Frame .*(?:not found|removed|detached)|frame .*was removed/i.test(msg)) {
+      return {
+        ok: false,
+        errorCode: ERR.FRAME_STALE,
+        error: `frame ${frameId == null ? '(未指定)' : frameId} 已经不存在了：${msg}。` +
+          'iframe 里的页面一跳转，frameId 就变了（旧编号作废）。先 action=frames 重新拿帧表再操作。',
+      }
+    }
+    if (/No tab with id/i.test(msg)) {
+      return { ok: false, errorCode: 'TAB_NOT_FOUND', error: msg }
     }
     return { ok: false, errorCode: ERR.INJECT_FAILED, error: msg }
   }
