@@ -268,4 +268,33 @@ console.log('11) replay · 原样重放 / dryRun / 鉴权脱敏')
   }), 'replay', { filter: 'x' })
   ok(/没发出去/.test(failed.message) && /Failed to fetch/.test(failed.message), '发不出去时给原因')
 }
+/* ------------------------------ 12. replay 的 authFrom（1.20.0 补实现） ------------------------------ */
+console.log('12) replay · authFrom 真合并进请求头')
+{
+  const seen = []
+  const r = await act(bridgeOf({
+    eval: () => ({ ok: true, value: '{"t":"T-123","ty":"Bearer"}', world: 'MAIN' }),
+    replay: (p) => {
+      seen.push(p)
+      return {
+        ok: true, sent: true, source: 'probe', method: 'POST', url: 'http://h/api/v1/wf/query_template',
+        status: 200, statusText: 'OK', headers: { 'content-type': 'application/json' },
+        body: '{"code":0}', jsonHead: '{"code":0}', bodyLength: 10, bodyTruncated: false,
+        tab: { id: 1, title: 't', url: 'http://h/' },
+      }
+    },
+  }), 'replay', { filter: 'query_template', match: 'path', authFrom: { key: 'm5_token', typeKey: 'm5_tokenType' } })
+
+  ok(seen.length === 1, 'replay 发了一次')
+  ok(seen[0].headers && seen[0].headers.authorization === 'Bearer T-123', 'authorization 合并进 headers', JSON.stringify(seen[0].headers))
+  ok(/已按 authFrom/.test(r.message), '回执说明令牌来源')
+  ok(!/T-123/.test(r.message), '回执不回显令牌')
+
+  const missing = await act(bridgeOf({
+    eval: () => ({ ok: true, value: '{}', world: 'MAIN' }),
+    replay: () => { throw new Error('不该发出去') },
+  }), 'replay', { filter: 'x', authFrom: 'm5_token' })
+  ok(missing.ok === false && /取不到令牌/.test(missing.message), '令牌为空时直接报错，不发请求', missing.message)
+}
+
 process.exit(fails ? 1 : 0)
