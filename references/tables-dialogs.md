@@ -47,6 +47,22 @@ errorCode: ELEMENT_DISABLED
 - 关弹窗：点「取消」或右上角关闭；用 `press Escape` 有时更稳。
 - 弹窗内容截不全：`screenshot` 用 `selector:".el-dialog"`，不要整屏。
 
+### 5.1 display:none 的 iframe 里点按钮 + 走完弹窗（MOM 审批页实测 2026-11-27）
+
+门户里的业务页经常挂在不可见的 iframe 上（用户切到别的标签后它还在），`outline` 会列 0 个元素、`click` 也点不到。打法：
+
+```js
+// ① 在目标帧里点按钮（frame 用 action=frames 拿）
+[...document.querySelectorAll('button')].find(b => b.innerText.trim() === '同意').click();
+// ② 读弹窗：.el-dialog 里按文字找确定；弹窗 visible 为 false 不影响点击
+const dlg = document.querySelector('.el-dialog');
+[...dlg.querySelectorAll('button')].find(b => b.innerText.trim() === '确定').click();
+```
+
+- **点完必须回查接口**：`networkLog{"filter":"task_approve"}` → `networkDetail{"filter":"task_approve","match":"path"}`，确认状态码与请求体；`el.click()` 不会报错，接口没发出去的话页面看起来一样。
+- 提交类操作会让页面 `location.href` 跳转，**该帧的 frameId 立即作废**（再操作报 `FRAME_STALE`）；提交后重新 `frames`，或直接查接口确认结果。
+- 需要填的输入框：先 `eval` 里读 `dlg.querySelectorAll('input,textarea')` 看当前值，再决定要不要改（很多弹窗默认已填「同意」）。
+
 ## 6. 表格排查清单
 
 1. 表格在不在 iframe 里？（`frames`，或看 `read` 回执的 `frame:{auto:true}`）

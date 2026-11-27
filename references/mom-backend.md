@@ -14,6 +14,7 @@
 ```
 
 - 过期后接口回 401：先刷新页面重新登录，或让用户重登；不要反复重放。
+- `replay` **同样支持 `authFrom`**（2026-11-27 实测）：探针行重放时 `Authorization` 已被脱敏，不补必 401；补上就 200，不用先 eval 取 token 再手拼头。
 
 ## 2. 必带业务头（照抄抓包，别按模板猜）
 
@@ -66,6 +67,8 @@
 | 字典 | POST `/api/v1/bd/v_bd_dict/querybytype_code?typecodes=['X']` | typecodes 要 URL 编码 |
 | 低代码数据 | POST `/api/v1/lowcode/lowcode_model/querydata`，body `{model_code}` | 页面里的 model_code 是写死的，从 html 里搜 |
 | 流程 | POST `/api/v1/wf/start_task` | 调整单等审批流 |
+| 通用表查询 | POST `/api/v1/<模块>/<表名>/Query`，body 同分页形状 | 只读取证用；`wf_task`、`wf_cosignconfig` 实测可用，未注册的表回 `code:1 未找到对应服务`（≠ 表是空的）。表名不可枚举，别靠猜 |
+| 审批流取证 | 见 `mom-workflow.md` | 模板/任务/审批详情/状态码语义 |
 
 低代码页面的地址形如 `/lowcode/display/pc/<page>.html?ModuleCode=<code>`；页面真正读的是 html 里写死的 `model_code`（例如
 `shengchanzhiling.html` → `mes_prod_adjust_applyXX`），**不是 URL 里的 ModuleCode**。
@@ -83,12 +86,23 @@
 
 ## 7. 门户 iframe
 
-- 门户壳页只有菜单，业务在 iframe。`frames` 查 frameId；`read` 会自动下沉，`fetch` 的相对地址按当前帧解析。
-- 抓接口先 `networkLog`（含各帧），再 `networkDetail` 看请求头，最后 `replay` 原样重发做对照。
+- 门户壳页只有菜单，业务在 iframe。**用户说「几个界面都开着」时先 `frames`，别只看 `tabs`**——这些业务页常常是同一个壳页里的多个 iframe（`tabs` 可能只有一两个）。
+- `frames` 查 frameId 与可见性；`read` 会自动下沉，但回执会写「自动下沉到 iframe …」，别把子帧正文当成你传的那一帧；`fetch` 的相对地址按当前帧解析。
+- `display:none` 的帧（没被激活的业务页）：`outline` 列 0 个、`click` 点不到，改用 `eval` 在帧内 `.click()`，提交后回查接口（配方见 `tables-dialogs.md` §5.1）。
+- **frameId 会随导航作废**：业务页 `location.href` 跳转后旧编号立即失效，报 `FRAME_STALE`（不是 CSP）。审批提交这类会跳转的操作，前后各跑一次 `frames`；门户里还可能连带关掉别的业务页（2026-11-27 实测 9 个帧 → 2 个、回到首页），动手前先记下要复用的 URL。
+- 抓接口先 `networkLog`（含各帧），再 `networkDetail` 看请求头，最后 `replay` 原样重发做对照。噪声过滤：`ignore:"i18n|weather|UnhandledMsgCount|heartbeat|unReadCount"`。
 - `networkDetail` 的 `filter` 是子串匹配：`routeActivity/query` 会命中 `queryActivityInfo`，用 `match:"path"` 或 `index` 选（index 在 filter 命中集合里数，0=最新）；响应体要全文就加 `saveTo`。
-- 行尾 `#pN` 是页面探针行：可以直接 `requestId:"pN"`；探针默认不记响应体，要看返回先在页面里 `window.__dshProbeRespLimit = 2000` 再复现。
-- 一次抓多个接口：`fetch` + `urls` + `saveToDir`，每个接口给一组表头用 `headersList`（与 `urls` 对齐）。
-- 需要写操作时先 `netBlock` 只登记，确认提交内容再放行。
+- 行尾 `#pN` 是页面探针行：可以直接 `requestId:"pN"`；探针默认不记响应体，要看返回先在页面里 `window.__dshProbeRespLimit = 2000` 再复现。多帧页面里探针 `#pN` 会重名，用 `filter`+`match:"path"` 定位更稳。
+- 一次抓多个接口：`fetch` + `urls` + `saveToDir`，每个接口给一组表头用 `headersList`（与 `urls` 对齐）；同 URL 不同 body 的批量用 `nameFrom:"字段名"`（落盘成 `01_<字段值>.json`）。
+- 需要写操作时先 `netBlock` 只登记，确认提交内容再放行：
+
+```json
+{"action":"netBlock","patterns":["task_approve"],"op":"set"}
+{"action":"netBlock","op":"hits"}
+{"action":"netBlock","op":"off"}
+```
+
+- **不可逆动作**（审批同意/驳回、下单、删除）先走上面三步拿到真实请求体，再真提交；提交后用详情接口（如 `get_approve_detail`）核对结果，别只看页面提示。
 
 ## 8. 业务流引擎（Node-RED）只读排查
 
