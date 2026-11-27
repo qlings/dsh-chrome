@@ -297,4 +297,29 @@ console.log('12) replay · authFrom 真合并进请求头')
   ok(missing.ok === false && /取不到令牌/.test(missing.message), '令牌为空时直接报错，不发请求', missing.message)
 }
 
+/* ------------------------------ 13. 截断说明分两种（1.20.2） ------------------------------ */
+console.log('13) replay · 截断说明不再一律说「超过 2MB」')
+{
+  const big = await act(bridgeOf({
+    replay: () => ({
+      ok: true, sent: true, source: 'probe', method: 'POST', url: 'http://h/api/v1/wf/query_template',
+      status: 200, statusText: 'OK', headers: {},
+      body: 'x'.repeat(4000), bodyLength: 15491, bodyTruncated: true, source: 'probe',
+      tab: { id: 1, title: 't', url: 'http://h/' },
+    }),
+  }), 'replay', { filter: 'query_template' })
+  ok(!/超过 2MB/.test(big.message), '15KB 的响应不说 2MB', big.message.split('\n').find((l) => l.includes('响应体')))
+  ok(/回执只给前 2000 字/.test(big.message), '说明是回执预览截断', big.message)
+
+  const huge = await act(bridgeOf({
+    replay: () => ({
+      ok: true, sent: true, source: 'cdp', method: 'POST', url: 'http://h/api/v1/big',
+      status: 200, statusText: 'OK', headers: {},
+      body: 'x', bodyLength: 3 * 1024 * 1024, bodyTruncated: true,
+      tab: { id: 1, title: 't', url: 'http://h/' },
+    }),
+  }), 'replay', { filter: 'big' })
+  ok(/超过 2MB/.test(huge.message), '真超过 2MB 才说 2MB', huge.message)
+}
+
 process.exit(fails ? 1 : 0)
