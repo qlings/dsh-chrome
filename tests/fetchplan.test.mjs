@@ -4,7 +4,7 @@
  * 背景（2026-11-24 抓 17 个流程定义）：没有批量就是 3 次 eval + 手写 slice；
  * 没有 shape 就得把 2.8 万字响应体读进上下文才知道里面有什么字段。
  */
-import { fileNameFromUrl, shapeOf } from '../lib/fetchplan.js'
+import { fileNameFromUrl, shapeOf, stemFromBody } from '../lib/fetchplan.js'
 
 let fails = 0
 const ok = (cond, name, extra) => {
@@ -54,6 +54,20 @@ console.log('3) 深度与字段数可调，且有截断提示')
   ok(shapeOf(null) === 'null', 'null'); ok(shapeOf('x') === 'string', '标量')
   ok(Array.isArray([]) && shapeOf([]) === 'array(0)', '空数组')
   ok(shapeOf({}) === '{}', '空对象', shapeOf({}))
+}
+
+console.log('4) nameFrom：从请求体取字段当文件名主干（1.20.0）')
+{
+  const body = { wftmpCode: 'F20261001111114225', flowVersion: 24 }
+  ok(stemFromBody(body, 'wftmpCode') === 'F20261001111114225', '对象取顶层字段', stemFromBody(body, 'wftmpCode'))
+  ok(stemFromBody(JSON.stringify(body), 'wftmpCode') === 'F20261001111114225', 'JSON 字符串也能取', stemFromBody(JSON.stringify(body), 'wftmpCode'))
+  ok(stemFromBody({ wftmpCode: 'x1' }, 'body.wftmpCode') === 'x1', '支持 body. 前缀（指请求体自身）', stemFromBody({ wftmpCode: 'x1' }, 'body.wftmpCode'))
+  ok(stemFromBody({ data: { id: 'A-1' } }, 'data.id') === 'A-1', '嵌套路径', stemFromBody({ data: { id: 'A-1' } }, 'data.id'))
+  ok(stemFromBody({ list: [{ code: 'c9' }] }, 'list.0.code') === 'c9', '数组下标', stemFromBody({ list: [{ code: 'c9' }] }, 'list.0.code'))
+  ok(stemFromBody({}, 'missing') === '', '取不到返回空串（回落 URL 命名）')
+  ok(stemFromBody({ v: 'a/b:c*?"<>|d' }, 'v') === 'a_b_c_d', '清掉 Windows 非法字符', stemFromBody({ v: 'a/b:c*?"<>|d' }, 'v'))
+  ok(stemFromBody({ v: '异常审批' }, 'v') === '异常审批', '中文照留')
+  ok(stemFromBody({ v: { nested: 1 } }, 'v') === '', '对象值不当文件名')
 }
 
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过')

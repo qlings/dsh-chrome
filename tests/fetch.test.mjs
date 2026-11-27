@@ -199,5 +199,53 @@ console.log('8) fetch · shape 只要字段不要值')
   ok(/datas: array\(1\)/.test(r.message), '数组给长度')
 }
 
+/* ------------------------------ 9. fetch 批量：nameFrom 从请求体取文件名 ------------------------------ */
+console.log('9) fetch · 批量 nameFrom（同 URL 不同 body）')
+{
+  const bodies = [
+    { wftmpCode: 'F20261001111114225', flowVersion: 24 },
+    { wftmpCode: 'F20260711110244456', flowVersion: 84 },
+    {},
+  ]
+  const dir = path.join(root, 'out', 'named')
+  const r = await act(bridgeOf({
+    fetch: (p) => {
+      const body = JSON.stringify({ echo: p.body })
+      return { ok: true, status: 200, url: p.url, body, json: { echo: p.body }, length: body.length, tab }
+    },
+  }), 'fetch', { urls: ['/api/v1/wf/query_template', '/api/v1/wf/query_template', '/api/v1/wf/query_template'], bodies, saveToDir: dir, nameFrom: 'wftmpCode' })
+
+  const files = (await readdir(dir)).sort()
+  ok(r.ok, '批量成功')
+  ok(files.includes('01_F20261001111114225.json'), '第 1 条按 body.wftmpCode 命名', files.join(','))
+  ok(files.includes('02_F20260711110244456.json'), '第 2 条各自不同名', files.join(','))
+  ok(files.some((f) => /^03_/.test(f)), '取不到值时回落到 URL 命名', files.join(','))
+  ok(/nameFrom/.test(r.message) && /取不到值/.test(r.message), '回执说明有几条回落', r.message.split('\n').slice(-2).join(' | '))
+}
+
+/* ------------------------------ 10. replay 失败响应不覆盖目标文件 ------------------------------ */
+console.log('10) replay · 401 错误页不覆盖 .json')
+{
+  const keepDir = path.join(root, 'keep')
+  const wanted = path.join(keepDir, 'query_template_v24.json')
+  const r = await act(bridgeOf({
+    replay: () => ({
+      ok: true, sent: true, method: 'POST', url: 'http://h/api/v1/wf/query_template',
+      status: 401, statusText: 'Unauthorized', contentType: 'text/html; charset=utf-8',
+      body: '<html><body>401 Authorization Required</body></html>', bodyLength: 51,
+      source: 'probe', tab,
+    }),
+  }), 'replay', { filter: 'query_template', match: 'path', saveTo: wanted })
+
+  ok(/不是成功响应/.test(r.message), '回执点破这不是成功响应', r.message)
+  ok(/没有被覆盖/.test(r.message), '说明目标文件未被覆盖', r.message)
+  ok(/401 = 网关鉴权失败/.test(r.message), '401 附带 authFrom 提示', r.message)
+  let gone = false
+  try { await readFile(wanted, 'utf8') } catch { gone = true }
+  ok(gone, '目标 .json 没有被写出来')
+  const errFile = await readFile(path.join(keepDir, 'query_template_v24.err.html'), 'utf8').catch(() => '')
+  ok(errFile.includes('401 Authorization Required'), '错误页另存为 .err.html', errFile.slice(0, 60))
+}
+
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过')
 process.exit(fails ? 1 : 0)
