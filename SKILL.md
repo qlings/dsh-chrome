@@ -3,7 +3,7 @@ name: chrome
 description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当前页面内容，多标签跳转和关联检查，按行文本勾选（幂等，重复跑不会点反），读长文本，批量流程一次跑完，用已登录账户自动登录，每次操作都落盘记录。当用户说“打开这个网页”“读一下页面上写了什么”“帮我填表/提交”“勾选这些项”“登录这个网站”“在几个页面之间对照检查”“截图这个页面”时使用。
 ---
 
-# chrome —— 接管本机 Chrome（v1.20.0）
+# chrome —— 接管本机 Chrome（v1.20.1）
 
 工具名 `chrome`，动作全在 `action` 参数里。桥默认 `127.0.0.1:18765`（被占时 18766–18769）。Chrome 需装「DSH Chrome 桥」扩展。
 
@@ -152,7 +152,8 @@ description: 用 dsh-chrome 接管本机 Chrome——读取、修改、提交当
 - 1.18.0 的改动：仅 `lib`（skill 随插件注册 + 首次/失败提示 + 热重载僵尸桥自动让位），扩展代码只改了版本号；重载扩展 + 重启 DSH。
 - 1.19.0 的改动：`cdp.js`（networkDetail 的 index 按 filter 命中集合取）+ `probe.js`（探针行 pN id、可选响应体 `__dshProbeRespLimit`、version=4）+ `executor.js`（探针行可按 id/source 精确取）+ `page.js`（JSON 嗅探，不再因 saveTo 刷解析失败）+ `lib`（404 HTML 网关提示、毫秒时间戳、sourceSearch 名单/scripts）→ 扩展重载 + 页面 F5 + 重启 DSH。
 - 1.20.0 的改动：`executor.js`（帧已不存在 → `FRAME_STALE`，不再误报成 INJECT_FAILED）+ `lib`（read 回执标出自动下沉的帧、outline 全隐藏时给 eval 打法、replay 失败不覆盖目标文件 + 401 提 authFrom、fetch 批量 `nameFrom`）+ 文档（iframe/隐藏帧/dry-run/wf 取证）→ 扩展重载 + 页面 F5 + 重启 DSH。
-- 判据：`diag` 里 `cs.pageVersion` 应为 `1.20.0`；`status` 里扩展版本 `1.20.0`。
+- 1.20.1 的改动：仅 `lib`（`replay` 的 `authFrom` 真正合并进请求头；之前文档写了没实现）→ 重启 DSH 生效。
+- 判据：`diag` 里 `cs.pageVersion` 应为 `1.20.1`；`status` 里扩展版本 `1.20.1`。
 
 ## 10. 安全
 

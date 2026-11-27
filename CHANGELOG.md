@@ -2,6 +2,16 @@
 
 每个版本都说清楚「哪次真实任务卡住了」和「现在怎么解」。按版本倒序。
 
+## 1.20.1 改了什么（1.20.0 的自摆乌龙）
+
+`1.20.0` 的文档写了「`replay` 也接受 `authFrom`」，实现里却只有 `fetch` 有。当时「实测 200」是误判：重放恰好命中 CDP 抓到的原请求，它自带 `Authorization`，跟 `authFrom` 没关系；换成探针行（凭据被打码）立刻 401。
+
+- `authFrom` 抽成 `resolveAuthFrom()`，`fetch` 与 `replay` 共用：令牌从页面 `localStorage` 取、拼成 `Bearer <token>`、合并进请求头（不覆盖其它头，大小写不敏感由扩展侧处理）；
+- `replay` 回执加一行「已按 authFrom … 取令牌」，不回显令牌；取不到令牌时直接报错、不发请求；
+- 补 3 组自测：令牌真的合并进 `headers.authorization`、回执不泄露令牌、令牌为空时不发请求。
+
+> 升级注意：只动 `lib/`。重启 DSH 生效（扩展没改，不必重载；`page.js` 版本号跟随发布号，会提示 F5）。
+
 ## 1.20.0 改了什么（一次 MOM 审批流「所有人必须同意」排查带出来的）
 
 2026-11-27 查「审批流配了所有人必须同意，一人同意就结束」：配置侧只花了几分钟，剩下时间全耗在 iframe 与取证上——用户说「三个界面都开着」而 `tabs` 只有两个；审批页在 `display:none` 的 iframe 里；点完「同意」页面跳转、旧 frameId 立刻失效；重放模板接口时 401 错误页还盖掉了刚抓的 JSON。
@@ -13,7 +23,7 @@
 | `saveTo` 批量抓 22 个同 URL、不同 body 的模板，文件名只有 `01_/02_…`，只能按顺序反推 | `fetch` 加 `nameFrom:"字段名"`（如 `wftmpCode`）→ `01_F20261001111114225.json`；取不到值时回落 URL 命名并在回执说明 |
 | `read frame=173` 实际读的是子帧 175，回执看不出来，容易张冠李戴 | `read` 自动下沉时回执写明「自动下沉到 iframe「标题」+ src」，并提示你传的 frame 不是它 |
 | `outline` 对 `display:none` 的 iframe 列 0 个元素，只写「跳过 N 个隐藏」，不给下一步 | 全部隐藏时回执直接给打法：`eval` 帧内 `.click()`，提交后回查 `networkLog` |
-| 文档没写「多个界面 = 一个壳页多个 iframe」「`replay` 也支持 `authFrom`」 | `SKILL.md` §0/§3/§4/§8 补齐；新增 `references/mom-workflow.md`（模板/任务/审批详情接口、`step_sts`/`task_sts` 语义、多人审批是否生效的三步判据） |
+| 文档没写「多个界面 = 一个壳页多个 iframe」「隐藏 iframe 怎么点」 | `SKILL.md` §0/§3/§4/§8 补齐；新增 `references/mom-workflow.md`（模板/任务/审批详情接口、`step_sts`/`task_sts` 语义、多人审批是否生效的三步判据）；`replay` 的 `authFrom` 当时只写了文档，1.20.1 才补实现 |
 
 > 升级注意：`executor.js` 与 `page.js`（版本号）有改动，`lib/` 也有 —— 重载扩展 + 目标页 F5 **且**重启 DSH。判据：`diag` 里 `cs.pageVersion` 和 `status` 的扩展版本都是 `1.20.0`。
 
