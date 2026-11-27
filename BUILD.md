@@ -42,8 +42,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -OutDir D:\tmp\dist
 
 ```text
 dist/
-├── dsh-chrome-extension-1.20.1.zip   ~101 KB
-├── dsh-chrome-1.20.1.tgz             ~201 KB
+├── dsh-chrome-extension-1.20.2.zip   ~101 KB
+├── dsh-chrome-1.20.2.tgz             ~201 KB
 └── SHA256SUMS.txt
 ```
 
@@ -58,7 +58,7 @@ $stage = "$env:TEMP\dsh-ext"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force "$stage\dsh-chrome-extension" | Out-Null
 Copy-Item .\extension\* "$stage\dsh-chrome-extension" -Recurse
-Compress-Archive -Path "$stage\dsh-chrome-extension" -DestinationPath .\dsh-chrome-extension-1.20.1.zip
+Compress-Archive -Path "$stage\dsh-chrome-extension" -DestinationPath .\dsh-chrome-extension-1.20.2.zip
 ```
 
 插件 tgz——npm 包里根目录必须叫 `package/`：
@@ -67,7 +67,7 @@ Compress-Archive -Path "$stage\dsh-chrome-extension" -DestinationPath .\dsh-chro
 $stage = "$env:TEMP\dsh-pkg\package"
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item .\lib,.\extension,.\references,.\SKILL.md,.\README.md,.\LICENSE,.\cordis.patch.yml,.\package.json $stage -Recurse
-tar -czf .\dsh-chrome-1.20.1.tgz -C (Split-Path $stage) package
+tar -czf .\dsh-chrome-1.20.2.tgz -C (Split-Path $stage) package
 ```
 
 ## 4. 测试
@@ -106,8 +106,8 @@ node --test tests/*.test.mjs
 
    ```powershell
    git add -A
-   git commit -m "release: v1.20.1"
-   git tag v1.20.1
+   git commit -m "release: v1.20.2"
+   git tag v1.20.2
    git push origin main --tags
    ```
 

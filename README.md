@@ -2,7 +2,7 @@
 
 **让 DeepSeek Harness 接管你本机的 Chrome。** 读页面、点按钮、填表、提交、多标签对照、复用已登录账户、按行文本勾选、一次读完长文本、一个 flow 跑完批量操作——每次操作都有结构化回执，并写一份 JSONL 流水。
 
-[![version](https://img.shields.io/badge/version-1.20.1-blue.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.20.2-blue.svg)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![chrome](https://img.shields.io/badge/chrome-MV3-yellow.svg)](extension/manifest.json)
@@ -52,9 +52,9 @@
 ## 快速开始
 
 ```text
-① 下载 dsh-chrome-extension-1.20.1.zip  →  解压到固定目录（路径之后不能动）
+① 下载 dsh-chrome-extension-1.20.2.zip  →  解压到固定目录（路径之后不能动）
 ② chrome://extensions  →  开发者模式  →  加载已解压的扩展程序  →  选 dsh-chrome-extension/
-③ 安装 DSH 插件（下载 dsh-chrome-1.20.1.tgz，或直接用源码）
+③ 安装 DSH 插件（下载 dsh-chrome-1.20.2.tgz，或直接用源码）
 ④ 验证：Invoke-RestMethod http://127.0.0.1:18765/status ，再点扩展图标看「已连上 DSH」
 ```
 
@@ -66,13 +66,13 @@
 
 | 文件 | 大小 | 用途 |
 |---|---|---|
-| `dsh-chrome-extension-1.20.1.zip` | ~101 KB | Chrome 扩展，解压后「加载已解压的扩展程序」 |
-| `dsh-chrome-1.20.1.tgz` | ~202 KB | DSH 插件包，`dsh plugin add` 或解压到 profile 的 `node_modules/` |
+| `dsh-chrome-extension-1.20.2.zip` | ~101 KB | Chrome 扩展，解压后「加载已解压的扩展程序」 |
+| `dsh-chrome-1.20.2.tgz` | ~202 KB | DSH 插件包，`dsh plugin add` 或解压到 profile 的 `node_modules/` |
 
 每个 Release 都带 `SHA256SUMS.txt`，Windows 上核对：
 
 ```powershell
-Get-FileHash .\dsh-chrome-extension-1.20.1.zip -Algorithm SHA256
+Get-FileHash .\dsh-chrome-extension-1.20.2.zip -Algorithm SHA256
 ```
 
 不想下载二进制？直接克隆源码即可，扩展和插件都是**纯文本、无构建步骤**：
@@ -88,7 +88,7 @@ git clone https://github.com/qlings/dsh-chrome.git
 ```powershell
 # 解压 tgz 并放到 profile 的 node_modules/（目录名必须是 dsh-chrome）
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-chrome"
-tar -xzf dsh-chrome-1.20.1.tgz -C "$env:TEMP\dsh-chrome-pkg"
+tar -xzf dsh-chrome-1.20.2.tgz -C "$env:TEMP\dsh-chrome-pkg"
 Copy-Item "$env:TEMP\dsh-chrome-pkg\package\*" "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-chrome" -Recurse -Force
 ```
 
